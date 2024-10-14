@@ -1,0 +1,56 @@
+syntax = "proto3"; // 指定使用 Proto3 语法
+package zkp_auth;  // 定义包名为 zkp_auth
+
+// 证明者 (Prover) 在服务器上注册时发送的信息：
+// y1 = alpha^x mod p
+// y2 = beta^x mod p
+message RegisterRequest {
+    string user = 1; // 用户名，用于标识证明者的字符串
+    bytes y1 = 2;    // y1 的值，采用字节数组表示 (alpha^x mod p)
+    bytes y2 = 3;    // y2 的值，采用字节数组表示 (beta^x mod p)
+}
+
+// 服务器对注册请求的响应
+message RegisterResponse {
+    // 这里暂时没有字段定义，可以根据需求扩展
+}
+
+// 证明者发起认证请求时发送的信息：
+// r1 = alpha^k mod p
+// r2 = beta^k mod p
+// 验证者会返回一个挑战值 "c"
+message AuthenticationChallengeRequest {
+    string user = 1; // 用户名，用于标识正在认证的用户
+    bytes r1 = 2;    // r1 的值，采用字节数组表示 (alpha^k mod p)
+    bytes r2 = 3;    // r2 的值，采用字节数组表示 (beta^k mod p)
+}
+
+// 服务器对认证挑战请求的响应
+message AuthenticationChallengeResponse {
+    string auth_id = 1; // 认证会话的唯一标识符，用于后续追踪认证流程
+    bytes c = 2;        // 挑战值 "c"，采用字节数组表示
+}
+
+// 证明者发送挑战的解决方案：
+// s = k - c*x mod q
+message AuthenticationAnswerRequest {
+    string auth_id = 1; // 认证会话的唯一标识符，与挑战请求关联
+    bytes s = 2;        // 解决方案 "s"，采用字节数组表示 (k - c*x mod q)
+}
+
+// 服务器对认证答案的响应
+message AuthenticationAnswerResponse {
+    string session_id = 1; // 会话 ID，表示用户已成功认证，可以开始会话
+}
+
+// 定义认证服务的接口
+service Auth {
+    // 注册接口：证明者注册后，服务器返回 RegisterResponse 响应
+    rpc Register(RegisterRequest) returns (RegisterResponse) {}
+    
+    // 创建认证挑战：证明者发送 r1 和 r2，服务器返回挑战值 c
+    rpc CreateAuthenticationChallenge(AuthenticationChallengeRequest) returns (AuthenticationChallengeResponse) {}
+
+    // 验证认证答案：证明者发送解决方案 s，服务器验证后返回会话 ID
+    rpc VerifyAuthentication(AuthenticationAnswerRequest) returns (AuthenticationAnswerResponse) {}
+}

@@ -1,53 +1,70 @@
-/// Prover registers in the server sendering:
-///   y1 = alpha^x mod p,
-///   y2 = beta^x mod p
+/// 证明者 (Prover) 在服务器上注册时发送的信息：
+/// y1 = alpha^x mod p
+/// y2 = beta^x mod p
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RegisterRequest {
+    /// 用户名，用于标识证明者的字符串
     #[prost(string, tag = "1")]
     pub user: ::prost::alloc::string::String,
+    /// y1 的值，采用字节数组表示 (alpha^x mod p)
     #[prost(bytes = "vec", tag = "2")]
     pub y1: ::prost::alloc::vec::Vec<u8>,
+    /// y2 的值，采用字节数组表示 (beta^x mod p)
     #[prost(bytes = "vec", tag = "3")]
     pub y2: ::prost::alloc::vec::Vec<u8>,
 }
+/// 服务器对注册请求的响应
+///
+/// 这里暂时没有字段定义，可以根据需求扩展
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RegisterResponse {}
-///   Prover ask for challenge in the sending:
-///   r1 = alpha^k mod p
-///   r2 = beta^k mod p
-/// Verifier sends the challenge "c" back
+/// 证明者发起认证请求时发送的信息：
+/// r1 = alpha^k mod p
+/// r2 = beta^k mod p
+/// 验证者会返回一个挑战值 "c"
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthenticationChallengeRequest {
+    /// 用户名，用于标识正在认证的用户
     #[prost(string, tag = "1")]
     pub user: ::prost::alloc::string::String,
+    /// r1 的值，采用字节数组表示 (alpha^k mod p)
     #[prost(bytes = "vec", tag = "2")]
     pub r1: ::prost::alloc::vec::Vec<u8>,
+    /// r2 的值，采用字节数组表示 (beta^k mod p)
     #[prost(bytes = "vec", tag = "3")]
     pub r2: ::prost::alloc::vec::Vec<u8>,
 }
+/// 服务器对认证挑战请求的响应
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthenticationChallengeResponse {
+    /// 认证会话的唯一标识符，用于后续追踪认证流程
     #[prost(string, tag = "1")]
     pub auth_id: ::prost::alloc::string::String,
+    /// 挑战值 "c"，采用字节数组表示
     #[prost(bytes = "vec", tag = "2")]
     pub c: ::prost::alloc::vec::Vec<u8>,
 }
-/// prover sends solution "s = k - c*x mod q" to the challenge
+/// 证明者发送挑战的解决方案：
+/// s = k - c*x mod q
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthenticationAnswerRequest {
+    /// 认证会话的唯一标识符，与挑战请求关联
     #[prost(string, tag = "1")]
     pub auth_id: ::prost::alloc::string::String,
+    /// 解决方案 "s"，采用字节数组表示 (k - c*x mod q)
     #[prost(bytes = "vec", tag = "2")]
     pub s: ::prost::alloc::vec::Vec<u8>,
 }
+/// 服务器对认证答案的响应
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AuthenticationAnswerResponse {
+    /// 会话 ID，表示用户已成功认证，可以开始会话
     #[prost(string, tag = "1")]
     pub session_id: ::prost::alloc::string::String,
 }
@@ -56,6 +73,7 @@ pub mod auth_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    /// 定义认证服务的接口
     #[derive(Debug, Clone)]
     pub struct AuthClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -136,6 +154,7 @@ pub mod auth_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
+        /// 注册接口：证明者注册后，服务器返回 RegisterResponse 响应
         pub async fn register(
             &mut self,
             request: impl tonic::IntoRequest<super::RegisterRequest>,
@@ -158,6 +177,7 @@ pub mod auth_client {
             req.extensions_mut().insert(GrpcMethod::new("zkp_auth.Auth", "Register"));
             self.inner.unary(req, path, codec).await
         }
+        /// 创建认证挑战：证明者发送 r1 和 r2，服务器返回挑战值 c
         pub async fn create_authentication_challenge(
             &mut self,
             request: impl tonic::IntoRequest<super::AuthenticationChallengeRequest>,
@@ -185,6 +205,7 @@ pub mod auth_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// 验证认证答案：证明者发送解决方案 s，服务器验证后返回会话 ID
         pub async fn verify_authentication(
             &mut self,
             request: impl tonic::IntoRequest<super::AuthenticationAnswerRequest>,
@@ -219,6 +240,7 @@ pub mod auth_server {
     /// Generated trait containing gRPC methods that should be implemented for use with AuthServer.
     #[async_trait]
     pub trait Auth: Send + Sync + 'static {
+        /// 注册接口：证明者注册后，服务器返回 RegisterResponse 响应
         async fn register(
             &self,
             request: tonic::Request<super::RegisterRequest>,
@@ -226,6 +248,7 @@ pub mod auth_server {
             tonic::Response<super::RegisterResponse>,
             tonic::Status,
         >;
+        /// 创建认证挑战：证明者发送 r1 和 r2，服务器返回挑战值 c
         async fn create_authentication_challenge(
             &self,
             request: tonic::Request<super::AuthenticationChallengeRequest>,
@@ -233,6 +256,7 @@ pub mod auth_server {
             tonic::Response<super::AuthenticationChallengeResponse>,
             tonic::Status,
         >;
+        /// 验证认证答案：证明者发送解决方案 s，服务器验证后返回会话 ID
         async fn verify_authentication(
             &self,
             request: tonic::Request<super::AuthenticationAnswerRequest>,
@@ -241,6 +265,7 @@ pub mod auth_server {
             tonic::Status,
         >;
     }
+    /// 定义认证服务的接口
     #[derive(Debug)]
     pub struct AuthServer<T: Auth> {
         inner: _Inner<T>,

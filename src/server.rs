@@ -22,8 +22,8 @@ use zkp_auth::{
 // 定义一个结构体 AuthImpl，用于实现 gRPC 服务
 #[derive(Debug, Default)] // 使用 Debug 和 Default 派生宏，生成结构体的调试输出和默认构造器
 pub struct AuthImpl {
-    pub user_info: Mutex<HashMap<String, UserInfo>>, // 使用 Mutex 保护 HashMap，存储用户信息以确保线程安全
-    pub auth_id_to_user:  Mutex<HashMap<String, String>>,
+     user_info: Mutex<HashMap<String, UserInfo>>, // 使用 Mutex 保护 HashMap，存储用户信息以确保线程安全
+     auth_id_to_user:  Mutex<HashMap<String, String>>,
 }
 
 // 定义一个 UserInfo 结构体，保存用户相关的信息
@@ -69,7 +69,7 @@ impl Auth for AuthImpl {
 
     // 实现创建认证挑战的功能，接收 AuthenticationChallengeRequest 并返回 AuthenticationChallengeResponse
     async fn create_authentication_challenge(&self, request: Request<AuthenticationChallengeRequest>) -> Result<Response<AuthenticationChallengeResponse>, Status> {
-        println!("Processing Register: {:?}", request); // 打印收到的注册请求，便于调试
+        println!("Processing Challenge: {:?}", request); // 打印收到的注册请求，便于调试
 
         let request = request.into_inner(); // 将 gRPC 请求解包，提取其中的请求消息
 
@@ -78,16 +78,14 @@ impl Auth for AuthImpl {
         let user_info_hashmap = &mut self.user_info.lock().unwrap();
 
         if let Some(user_info) = user_info_hashmap.get_mut(&user_name) {
-            user_info.r1 = BigUint::from_bytes_be(&request.r1);
-            user_info.r2 = BigUint::from_bytes_be(&request.r2);
-
-
             let ( _,_ ,_ , q) = ZKP::get_constants();
 
-            let c = ZKP::generate_random_below(&q);
-            let auth_id = "hello".to_string();
+            let c = ZKP::generate_random_number_below(&q);
+            let auth_id = ZKP::generate_random_string(12);
 
-            let mut  auth_id_to_user = &mut self.auth_id_to_user.lock().unwrap();
+            user_info.c = c.clone();
+
+            let   auth_id_to_user = &mut self.auth_id_to_user.lock().unwrap();
             auth_id_to_user.insert(auth_id.clone(), user_name);
 
             Ok(Response::new(AuthenticationChallengeResponse{ auth_id, c: c.to_bytes_be()   }))
@@ -97,10 +95,44 @@ impl Auth for AuthImpl {
 
     }
 
+
     // 实现验证认证的功能，接收 AuthenticationAnswerRequest 并返回 AuthenticationAnswerResponse
     async fn verify_authentication(&self, request: Request<AuthenticationAnswerRequest>) -> Result<Response<AuthenticationAnswerResponse>, Status> {
-        todo!() // 未实现的功能，使用 todo!() 宏标记
+        println!("Processing Verification: {:?}", request); // 打印收到的注册请求，便于调试
+
+        let request = request.into_inner(); // 将 gRPC 请求解包，提取其中的请求消息
+
+        let auth_id = request.auth_id; // 从请求中获取用户名
+
+        let   auth_id_to_user_hashmap = &mut self.auth_id_to_user.lock().unwrap();
+
+        if let Some(user_name) = auth_id_to_user_hashmap.get(&auth_id) {
+            let  user_info_hashmap = &mut self.user_info.lock().unwrap();
+            let user_info = user_info_hashmap.get_mut(user_name).expect("AuthId not found on Hashmap",);
+
+            let s = BigUint::from_bytes_be(&request.s);
+
+            let ( alpha,beta ,p , q) = ZKP::get_constants();
+            let zkp = ZKP {alpha, beta, p ,q};
+
+
+            let verification = zkp.verify(&user_info.r1, &user_info.r2, &user_info.y1,  &user_info.y2, &user_info.c, &  s);
+
+            if verification {
+                let session_id = ZKP::generate_random_string(12);
+
+                Ok(Response::new(AuthenticationAnswerResponse{ session_id}))
+            } else {
+            Err(Status::new(Code::PermissionDenied, format!("AuthId: {} bad solution to the challenge", auth_id)))
+            }
+
+
+        } else {
+            Err(Status::new(Code::NotFound, format!("AuthId: {} not found in database", auth_id)))
+        }
+        
     }
+
 }
 
 // 主函数，运行 gRPC 服务器

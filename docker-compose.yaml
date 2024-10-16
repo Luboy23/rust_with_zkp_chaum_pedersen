@@ -1,0 +1,8 @@
+services: 
+  zkpserver:
+    build: .
+    volumes: 
+      - ./:/zkp-server
+    environment:
+      - USER=lllu_23
+    container_name: zkpserver

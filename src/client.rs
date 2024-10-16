@@ -34,6 +34,13 @@ async fn main() { // 定义异步主函数，程序的入口点
     let password = BigUint::from_bytes_be(buf.trim().as_bytes()); // 将输入的密码转为大整数 BigUint 类型
     buf.clear(); // 清空缓冲区
 
+    println!("Please provide the password (to login):");
+    stdin()
+        .read_line(&mut buf)
+        .expect("Could not get the username from stdin");
+    let password = BigUint::from_bytes_be(buf.trim().as_bytes());
+    buf.clear();
+
     // 计算 y1 和 y2，分别为 alpha 和 beta 的密码次方模 p 的结果，使用 Chaum-Pedersen 协议
     let y1 = ZKP::exponentiate(&alpha, &password, &p);
     let y2 = ZKP::exponentiate(&beta, &password, &p);
